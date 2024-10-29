@@ -1,5 +1,5 @@
 # Start with Go image to build the binary
-FROM golang:1.22-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
 
 # Install build dependencies including bash
 RUN apk add --no-cache make git bash
@@ -10,11 +10,13 @@ WORKDIR /app
 # Clone the repository
 RUN git clone https://github.com/akave-ai/akavesdk .
 
-# Build the binary
-RUN make build
+# Set the target platform for the build
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH make build
 
 # Final image
-FROM alpine:3.19
+FROM --platform=$TARGETPLATFORM alpine:3.19
 
 # Install Node.js and npm
 RUN apk add --no-cache nodejs npm
