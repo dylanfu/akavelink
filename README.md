@@ -8,20 +8,26 @@ A containerized API service for interacting with Akave's decentralized storage n
 ```bash 
 docker pull akave/akavelink:latest
 ```
-### 2. Run the container to serve a personal api
+
+### 2. Get Node Address
+Contact Akave team to receive your dedicated node address.
+
+### 3. Run the container to serve a personal api
 ```bash
 docker run -d \
 -p 8000:3000 \
+-e NODE_ADDRESS="your_node_address" \
 -e PRIVATE_KEY="your_private_key" \
 akave/akavelink:latest
 ```
+
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| NODE_ADDRESS | Akave node address | 23.227.172.75:5500 |
-| PRIVATE_KEY | Your Akave private key | "" |
-| PORT | API server port | 3000 |
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| NODE_ADDRESS | Akave node address (contact team) | Yes | "" |
+| PRIVATE_KEY | Your Akave private key | Yes | "" |
+| PORT | API server port | No | 3000 |
 
 # API Documentation
 

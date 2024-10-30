@@ -38,7 +38,7 @@ COPY server.js ./
 COPY index.js ./
 
 # Environment variables with defaults
-ENV NODE_ADDRESS=23.227.172.75:5500
+ENV NODE_ADDRESS=""
 ENV PRIVATE_KEY=""
 ENV PORT=3000
 
