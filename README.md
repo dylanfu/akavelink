@@ -90,21 +90,6 @@ Get details of a specific bucket.
 }
 ```
 
-### Delete Bucket
-`DELETE /buckets/:bucketName`
-
-Delete a specific bucket.
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "Name": "string"
-    }
-}
-```
-
 ## File Operations
 
 ### List Files
