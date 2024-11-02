@@ -3,7 +3,11 @@ const { spawn } = require("child_process");
 class AkaveIPCClient {
   constructor(nodeAddress, privateKey) {
     this.nodeAddress = nodeAddress;
-    this.privateKey = privateKey;
+    if (privateKey && privateKey.startsWith('0x')) {
+      this.privateKey = privateKey.slice(2);
+    } else {
+      this.privateKey = privateKey;
+    }
   }
 
   executeCommand(args, parser = "default") {
