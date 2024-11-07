@@ -109,8 +109,9 @@ app.post('/buckets/:bucketName/files', upload, async (req, res) => {
         if (uploadedFile) {
             // Handle buffer upload
             const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'akave-'));
-            const tempFilePath = path.join(tempDir, uploadedFile.originalname);
-            
+            // Sanitize filename by replacing spaces and special chars with underscore
+            const sanitizedFileName = uploadedFile.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+            const tempFilePath = path.join(tempDir, sanitizedFileName);
             try {
                 // Write buffer to temporary file
                 await fs.writeFile(tempFilePath, uploadedFile.buffer);
