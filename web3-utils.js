@@ -29,10 +29,12 @@ const publicClient = createPublicClient({
 
 //@TODO: Find a better way to get the related transaction hash.
 
-async function getLatestTransaction(address) {
+async function getLatestTransaction(address, commandId) {
   try {
-    // First attempt - check latest block
+    // First attempt
     const blockNumber = await publicClient.getBlockNumber();
+    console.log(`[${commandId}] 🔍 Checking block ${blockNumber} for transactions`);
+    
     const block = await publicClient.getBlock({
       blockNumber,
       includeTransactions: true
@@ -43,14 +45,18 @@ async function getLatestTransaction(address) {
     );
 
     if (transactions.length > 0) {
-      return transactions[transactions.length - 1].hash;
+      const hash = transactions[transactions.length - 1].hash;
+      console.log(`[${commandId}] ✅ Found transaction hash in first attempt: ${hash}`);
+      return hash;
     }
 
-    // If not found, wait 5 seconds and try again
+    console.log(`[${commandId}] ⏳ No transaction found, waiting 5 seconds...`);
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Second attempt
     const newBlockNumber = await publicClient.getBlockNumber();
+    console.log(`[${commandId}] 🔍 Checking block ${newBlockNumber} for transactions`);
+    
     const newBlock = await publicClient.getBlock({
       blockNumber: newBlockNumber,
       includeTransactions: true
@@ -60,10 +66,17 @@ async function getLatestTransaction(address) {
       tx.from?.toLowerCase() === address.toLowerCase()
     );
 
-    return transactions[transactions.length - 1]?.hash || null;
+    const hash = transactions[transactions.length - 1]?.hash;
+    if (hash) {
+      console.log(`[${commandId}] ✅ Found transaction hash in second attempt: ${hash}`);
+    } else {
+      console.log(`[${commandId}] ❌ No transaction found after retrying`);
+    }
+
+    return hash || null;
 
   } catch (error) {
-    console.error('Error getting latest transaction:', error);
+    console.error(`[${commandId}] 🔴 Error getting latest transaction:`, error);
     return null;
   }
 }

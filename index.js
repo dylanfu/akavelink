@@ -14,51 +14,65 @@ class AkaveIPCClient {
   }
 
   async executeCommand(args, parser = "default", trackTransaction = false) {
-    const result = await new Promise((resolve, reject) => {
-      console.log("Executing command: akavecli", args.join(" "));
+    const commandId = Math.random().toString(36).substring(7);
+    console.log(`[${commandId}] Executing command: akavecli ${args.join(" ")}`);
 
+    const result = await new Promise((resolve, reject) => {
       const process = spawn("akavecli", args);
       let stdout = "";
       let stderr = "";
 
       process.stdout.on("data", (data) => {
         stdout += data.toString();
-        console.log("Received stdout chunk:", data.toString());
+        console.log(`[${commandId}] stdout: ${data.toString().trim()}`);
       });
 
       process.stderr.on("data", (data) => {
         stderr += data.toString();
-        console.log("Received stderr chunk:", data.toString());
+        // Only log stderr if it's not a success message
+        if (!data.toString().includes('File uploaded successfully:')) {
+          console.error(`[${commandId}] stderr: ${data.toString().trim()}`);
+        }
       });
 
       process.on("close", (code) => {
-        console.log("Process exited with code:", code);
-        console.log("Final stdout:", stdout);
-        console.log("Final stderr:", stderr);
-
         const output = (stdout + stderr).trim();
+        
+        if (code === 0) {
+          console.log(`[${commandId}] Command completed successfully`);
+        } else {
+          console.error(`[${commandId}] Command failed with code: ${code}`);
+        }
 
         try {
           const result = this.parseOutput(output, parser);
           resolve(result);
         } catch (error) {
+          console.error(`[${commandId}] Failed to parse output:`, error.message);
           reject(error);
         }
       });
 
       process.on("error", (err) => {
-        console.error("Process error:", err);
+        console.error(`[${commandId}] Process error:`, err);
         reject(err);
       });
     });
 
     if (trackTransaction) {
       try {
+        console.log(`[${commandId}] Fetching transaction hash...`);
         const txHash = await getLatestTransaction(this.address);
-        console.log("txHash: ", txHash);
-        return txHash ? { ...result, transactionHash: txHash } : result;
+        
+        if (txHash) {
+          console.log(`[${commandId}] Transaction hash found: ${txHash}`);
+          return { ...result, transactionHash: txHash };
+        } else {
+          console.warn(`[${commandId}] No transaction hash found`);
+          return result;
+        }
       } catch (error) {
-        console.warn('Failed to get transaction hash:', error);
+        console.error(`[${commandId}] Failed to get transaction hash:`, error);
         return result;
       }
     }

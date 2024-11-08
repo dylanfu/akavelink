@@ -32,12 +32,23 @@ const client = new AkaveIPCClient(
   process.env.PRIVATE_KEY
 );
 
+// Add a simple logger
+const logger = {
+  info: (id, message, data = {}) => {
+    console.log(`[${id}] 🔵 ${message}`, data);
+  },
+  error: (id, message, error = {}) => {
+    console.error(`[${id}] 🔴 ${message}`, error);
+  },
+  warn: (id, message, data = {}) => {
+    console.warn(`[${id}] 🟡 ${message}`, data);
+  }
+};
+
 // After client initialization
-console.log("Initializing client with:", {
+logger.info('INIT', 'Initializing client', {
   nodeAddress: process.env.NODE_ADDRESS,
-  privateKeyLength: process.env.PRIVATE_KEY
-    ? process.env.PRIVATE_KEY.length
-    : 0,
+  privateKeyLength: process.env.PRIVATE_KEY ? process.env.PRIVATE_KEY.length : 0,
 });
 
 // Health check endpoint
@@ -107,11 +118,19 @@ app.get("/buckets/:bucketName/files/:fileName", async (req, res) => {
 
 // Modified file upload endpoint
 app.post("/buckets/:bucketName/files", upload, async (req, res) => {
+  const requestId = Math.random().toString(36).substring(7);
   try {
+    logger.info(requestId, 'Processing file upload request', { 
+      bucket: req.params.bucketName 
+    });
+
     let result;
     const uploadedFile = req.files?.file?.[0] || req.files?.file1?.[0];
 
     if (uploadedFile) {
+      logger.info(requestId, 'Handling buffer upload', { 
+        filename: uploadedFile.originalname 
+      });
       // Handle buffer upload
       const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "akave-"));
       // Sanitize filename by replacing spaces and special chars with underscore
@@ -134,6 +153,9 @@ app.post("/buckets/:bucketName/files", upload, async (req, res) => {
         await fs.rm(tempDir, { recursive: true, force: true });
       }
     } else if (req.body.filePath) {
+      logger.info(requestId, 'Handling file path upload', { 
+        path: req.body.filePath 
+      });
       // Handle file path upload
       result = await client.uploadFile(
         req.params.bucketName,
@@ -143,14 +165,22 @@ app.post("/buckets/:bucketName/files", upload, async (req, res) => {
       throw new Error("No file or filePath provided");
     }
 
+    logger.info(requestId, 'File upload completed', { result });
     res.json({ success: true, data: result });
   } catch (error) {
+    logger.error(requestId, 'File upload failed', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 app.get("/buckets/:bucketName/files/:fileName/download", async (req, res) => {
+  const requestId = Math.random().toString(36).substring(7);
   try {
+    logger.info(requestId, 'Processing download request', {
+      bucket: req.params.bucketName,
+      file: req.params.fileName
+    });
+
     // Create downloads directory if it doesn't exist
     const downloadDir = path.join(process.cwd(), "downloads");
     await fs.mkdir(downloadDir, { recursive: true });
@@ -187,16 +217,16 @@ app.get("/buckets/:bucketName/files/:fileName/download", async (req, res) => {
 
     // Handle stream errors
     fileStream.on("error", (err) => {
-      console.error("Stream error:", err);
+      logger.error(requestId, 'Stream error occurred', err);
       if (!res.headersSent) {
         res.status(500).json({ success: false, error: err.message });
       }
     });
 
-    // Pipe the file to response
+    logger.info(requestId, 'Starting file stream');
     fileStream.pipe(res);
   } catch (error) {
-    console.error("Download error:", error);
+    logger.error(requestId, 'Download failed', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
