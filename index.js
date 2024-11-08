@@ -1,4 +1,6 @@
 const { spawn } = require("child_process");
+const { getLatestTransaction } = require('./web3-utils');
+const { privateKeyToAccount } = require('viem/accounts');
 
 class AkaveIPCClient {
   constructor(nodeAddress, privateKey) {
@@ -8,10 +10,11 @@ class AkaveIPCClient {
     } else {
       this.privateKey = privateKey;
     }
+    this.address = privateKeyToAccount(`0x${this.privateKey}`).address;
   }
 
-  executeCommand(args, parser = "default") {
-    return new Promise((resolve, reject) => {
+  async executeCommand(args, parser = "default", trackTransaction = false) {
+    const result = await new Promise((resolve, reject) => {
       console.log("Executing command: akavecli", args.join(" "));
 
       const process = spawn("akavecli", args);
@@ -48,6 +51,19 @@ class AkaveIPCClient {
         reject(err);
       });
     });
+
+    if (trackTransaction) {
+      try {
+        const txHash = await getLatestTransaction(this.address);
+        console.log("txHash: ", txHash);
+        return txHash ? { ...result, transactionHash: txHash } : result;
+      } catch (error) {
+        console.warn('Failed to get transaction hash:', error);
+        return result;
+      }
+    }
+
+    return result;
   }
 
   parseOutput(output, parser) {
@@ -181,12 +197,16 @@ class AkaveIPCClient {
   }
 
   parseFileUpload(output) {
-    if (!output.startsWith('File uploaded successfully:')) {
-      throw new Error('Unexpected output format for file upload');
+    // Split output into lines and find the success message
+    const lines = output.split('\n');
+    const successLine = lines.find(line => line.includes('File uploaded successfully:'));
+    
+    if (!successLine) {
+      throw new Error('File upload failed: ' + output);
     }
     
-    const fileInfo = output
-      .substring('File uploaded successfully:'.length)
+    const fileInfo = successLine
+      .substring(successLine.indexOf('File uploaded successfully:') + 'File uploaded successfully:'.length)
       .trim()
       .split(', ');
     
@@ -216,7 +236,7 @@ class AkaveIPCClient {
       `--node-address=${this.nodeAddress}`,
       `--private-key=${this.privateKey}`,
     ];
-    return this.executeCommand(args, "createBucket");
+    return this.executeCommand(args, "createBucket", true);
   }
 
   async deleteBucket(bucketName) {
@@ -228,7 +248,7 @@ class AkaveIPCClient {
       `--node-address=${this.nodeAddress}`,
       `--private-key=${this.privateKey}`,
     ];
-    return this.executeCommand(args, "deleteBucket");
+    return this.executeCommand(args, "deleteBucket", true);
   }
 
   async viewBucket(bucketName) {
@@ -290,7 +310,7 @@ class AkaveIPCClient {
       `--node-address=${this.nodeAddress}`,
       `--private-key=${this.privateKey}`,
     ];
-    return this.executeCommand(args, "uploadFile");
+    return this.executeCommand(args, "uploadFile", true);
   }
 
   async downloadFile(bucketName, fileName, destinationPath) {
