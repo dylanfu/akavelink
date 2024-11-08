@@ -1,4 +1,6 @@
 const { spawn } = require("child_process");
+const { getLatestTransaction } = require('./web3-utils');
+const { privateKeyToAccount } = require('viem/accounts');
 
 class AkaveIPCClient {
   constructor(nodeAddress, privateKey) {
@@ -8,46 +10,74 @@ class AkaveIPCClient {
     } else {
       this.privateKey = privateKey;
     }
+    this.address = privateKeyToAccount(`0x${this.privateKey}`).address;
   }
 
-  executeCommand(args, parser = "default") {
-    return new Promise((resolve, reject) => {
-      console.log("Executing command: akavecli", args.join(" "));
+  async executeCommand(args, parser = "default", trackTransaction = false) {
+    const commandId = Math.random().toString(36).substring(7);
+    console.log(`[${commandId}] Executing command: akavecli ${args.join(" ")}`);
 
+    const result = await new Promise((resolve, reject) => {
       const process = spawn("akavecli", args);
       let stdout = "";
       let stderr = "";
 
       process.stdout.on("data", (data) => {
         stdout += data.toString();
-        console.log("Received stdout chunk:", data.toString());
+        console.log(`[${commandId}] stdout: ${data.toString().trim()}`);
       });
 
       process.stderr.on("data", (data) => {
         stderr += data.toString();
-        console.log("Received stderr chunk:", data.toString());
+        // Only log stderr if it's not a success message
+        if (!data.toString().includes('File uploaded successfully:')) {
+          console.error(`[${commandId}] stderr: ${data.toString().trim()}`);
+        }
       });
 
       process.on("close", (code) => {
-        console.log("Process exited with code:", code);
-        console.log("Final stdout:", stdout);
-        console.log("Final stderr:", stderr);
-
         const output = (stdout + stderr).trim();
+        
+        if (code === 0) {
+          console.log(`[${commandId}] Command completed successfully`);
+        } else {
+          console.error(`[${commandId}] Command failed with code: ${code}`);
+        }
 
         try {
           const result = this.parseOutput(output, parser);
           resolve(result);
         } catch (error) {
+          console.error(`[${commandId}] Failed to parse output:`, error.message);
           reject(error);
         }
       });
 
       process.on("error", (err) => {
-        console.error("Process error:", err);
+        console.error(`[${commandId}] Process error:`, err);
         reject(err);
       });
     });
+
+    if (trackTransaction) {
+      try {
+        console.log(`[${commandId}] Fetching transaction hash...`);
+        const txHash = await getLatestTransaction(this.address);
+        
+        if (txHash) {
+          console.log(`[${commandId}] Transaction hash found: ${txHash}`);
+          return { ...result, transactionHash: txHash };
+        } else {
+          console.warn(`[${commandId}] No transaction hash found`);
+          return result;
+        }
+      } catch (error) {
+        console.error(`[${commandId}] Failed to get transaction hash:`, error);
+        return result;
+      }
+    }
+
+    return result;
   }
 
   parseOutput(output, parser) {
@@ -181,12 +211,16 @@ class AkaveIPCClient {
   }
 
   parseFileUpload(output) {
-    if (!output.startsWith('File uploaded successfully:')) {
-      throw new Error('Unexpected output format for file upload');
+    // Split output into lines and find the success message
+    const lines = output.split('\n');
+    const successLine = lines.find(line => line.includes('File uploaded successfully:'));
+    
+    if (!successLine) {
+      throw new Error('File upload failed: ' + output);
     }
     
-    const fileInfo = output
-      .substring('File uploaded successfully:'.length)
+    const fileInfo = successLine
+      .substring(successLine.indexOf('File uploaded successfully:') + 'File uploaded successfully:'.length)
       .trim()
       .split(', ');
     
@@ -216,7 +250,7 @@ class AkaveIPCClient {
       `--node-address=${this.nodeAddress}`,
       `--private-key=${this.privateKey}`,
     ];
-    return this.executeCommand(args, "createBucket");
+    return this.executeCommand(args, "createBucket", true);
   }
 
   async deleteBucket(bucketName) {
@@ -228,7 +262,7 @@ class AkaveIPCClient {
       `--node-address=${this.nodeAddress}`,
       `--private-key=${this.privateKey}`,
     ];
-    return this.executeCommand(args, "deleteBucket");
+    return this.executeCommand(args, "deleteBucket", true);
   }
 
   async viewBucket(bucketName) {
@@ -290,7 +324,7 @@ class AkaveIPCClient {
       `--node-address=${this.nodeAddress}`,
       `--private-key=${this.privateKey}`,
     ];
-    return this.executeCommand(args, "uploadFile");
+    return this.executeCommand(args, "uploadFile", true);
   }
 
   async downloadFile(bucketName, fileName, destinationPath) {
