@@ -6,11 +6,22 @@ const fsSync = require("fs");
 const path = require("path");
 const os = require("os");
 const dotenv = require("dotenv");
+const cors = require("cors");
 
 dotenv.config();
 
 // Initialize express app
 const app = express();
+
+// Configure CORS
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
 
 // Middleware to parse JSON bodies
 app.use(express.json());

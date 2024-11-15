@@ -42,6 +42,7 @@ COPY web3-utils.js ./
 ENV NODE_ADDRESS=""
 ENV PRIVATE_KEY=""
 ENV PORT=3000
+ENV CORS_ORIGIN="*"
 
 # Expose API port
 EXPOSE 3000
@@ -51,4 +52,4 @@ HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Start the API server
-CMD ["node", "server.js"] 
+CMD ["node", "server.js"]
